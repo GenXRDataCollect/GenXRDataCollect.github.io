@@ -28,16 +28,25 @@ export default function App() {
 
   const canSend = status === "connected";
 
-  async function sendStart() {
-    const payload = { source: "web-manager", ts: Date.now(), note: "start clicked" } as const;
-    socketManager.emit(EVENTS.START, payload);
-    await logger.logControlAction(EVENTS.START, payload);
+  const buildPayload = (note: string) =>
+    ({ source: "web-manager", ts: Date.now(), note } as const);
+
+  async function sendStartAnimationPreview() {
+    const payload = buildPayload("start animation preview clicked");
+    socketManager.emit(EVENTS.START_ANIMATION_PREVIEW, payload);
+    await logger.logControlAction(EVENTS.START_ANIMATION_PREVIEW, payload);
   }
 
-  async function sendStop() {
-    const payload = { source: "web-manager", ts: Date.now(), note: "stop clicked" } as const;
-    socketManager.emit(EVENTS.STOP, payload);
-    await logger.logControlAction(EVENTS.STOP, payload);
+  async function sendStartPlayAndRecord() {
+    const payload = buildPayload("start playing and recording clicked");
+    socketManager.emit(EVENTS.START_PLAY_AND_RECORD, payload);
+    await logger.logControlAction(EVENTS.START_PLAY_AND_RECORD, payload);
+  }
+
+  async function sendStopRecording() {
+    const payload = buildPayload("stop recording clicked");
+    socketManager.emit(EVENTS.STOP_RECORDING, payload);
+    await logger.logControlAction(EVENTS.STOP_RECORDING, payload);
   }
 
   return (
@@ -69,11 +78,14 @@ export default function App() {
         </div>
 
         <div className="row">
-          <button className="primary" onClick={sendStart} disabled={!canSend}>
-            Start
+          <button className="primary" onClick={sendStartAnimationPreview} disabled={!canSend}>
+            Start animation preview
           </button>
-          <button className="danger" onClick={sendStop} disabled={!canSend}>
-            Stop
+          <button className="primary" onClick={sendStartPlayAndRecord} disabled={!canSend}>
+            Start playing and recording
+          </button>
+          <button className="danger" onClick={sendStopRecording} disabled={!canSend}>
+            Stop recording
           </button>
         </div>
       </div>
