@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
 import { SocketManager, type SocketStatus } from "./services/socket";
 import { EVENTS } from "./types/events";
@@ -8,6 +8,8 @@ export default function App() {
   const [url, setUrl] = useState("http://localhost:3001");
   const [status, setStatus] = useState<SocketStatus>("disconnected");
   const [logs, setLogs] = useState<string[]>([]);
+  const [demoId, setDemoId] = useState(0);
+  const demoIdRef = useRef(demoId);
 
   const socketManager = useMemo(() => {
     // 注意：url 变化就 new 一个 manager（简单粗暴但清晰）
@@ -15,9 +17,16 @@ export default function App() {
   }, [url]);
 
   useEffect(() => {
+    demoIdRef.current = demoId;
+  }, [demoId]);
+
+  useEffect(() => {
     const offStatus = socketManager.onStatus(setStatus);
     const offLog = socketManager.onLog((m) =>
-      setLogs((prev) => [`${new Date().toLocaleTimeString()}  ${m}`, ...prev].slice(0, 200))
+      setLogs((prev) => {
+        const id = demoIdRef.current;
+        return [`${new Date().toLocaleTimeString()}  [demoID:${id}] ${m}`, ...prev].slice(0, 200);
+      })
     );
     return () => {
       offStatus();
@@ -28,23 +37,26 @@ export default function App() {
 
   const canSend = status === "connected";
 
-  const buildPayload = (note: string) =>
-    ({ source: "web-manager", ts: Date.now(), note } as const);
+  const buildPayload = (note: string, currentDemoId: number) =>
+    ({ source: "web-manager", ts: Date.now(), note, demoId: currentDemoId } as const);
 
   async function sendStartAnimationPreview() {
-    const payload = buildPayload("start animation preview clicked");
+    const nextDemoId = demoId + 1;
+    demoIdRef.current = nextDemoId;
+    setDemoId(nextDemoId);
+    const payload = buildPayload("start animation preview clicked", nextDemoId);
     socketManager.emit(EVENTS.START_ANIMATION_PREVIEW, payload);
     await logger.logControlAction(EVENTS.START_ANIMATION_PREVIEW, payload);
   }
 
   async function sendStartPlayAndRecord() {
-    const payload = buildPayload("start playing and recording clicked");
+    const payload = buildPayload("start playing and recording clicked", demoId);
     socketManager.emit(EVENTS.START_PLAY_AND_RECORD, payload);
     await logger.logControlAction(EVENTS.START_PLAY_AND_RECORD, payload);
   }
 
   async function sendStopRecording() {
-    const payload = buildPayload("stop recording clicked");
+    const payload = buildPayload("stop recording clicked", demoId);
     socketManager.emit(EVENTS.STOP_RECORDING, payload);
     await logger.logControlAction(EVENTS.STOP_RECORDING, payload);
   }
@@ -57,6 +69,23 @@ export default function App() {
         <div className="row">
           <label>Server URL</label>
           <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3001" />
+        </div>
+
+        <div className="row">
+          <label>Demo ID</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            value={demoId}
+            onChange={(e) => {
+              const next = Number(e.target.value) || 0;
+              demoIdRef.current = next;
+              setDemoId(next);
+            }}
+            title="Scroll or type to set the current demo ID"
+          />
         </div>
 
         <div className="row">

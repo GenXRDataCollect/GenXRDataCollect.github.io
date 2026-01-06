@@ -9,6 +9,7 @@ export interface ControlPayload {
   source: "web-manager";
   ts: number;               // Date.now()
   note?: string;            // 预留字段
+  demoId: number;           // 当前 demo ID
 }
 
 export const EVENTS = {
