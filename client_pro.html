@@ -1,0 +1,13 @@
+<script>
+let ws = new WebSocket("ws://YOUR_IP:8080");
+
+ws.onmessage = (event) => {
+  if (event.data === "START") {
+    console.log("VisionPro Start!");
+    // trigger collection
+  }
+  if (event.data === "STOP") {
+    console.log("VisionPro Stop!");
+  }
+};
+</script>

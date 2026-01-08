@@ -1,0 +1,6 @@
+<button onclick="ws.send('START')">Start</button>
+<button onclick="ws.send('STOP')">Stop</button>
+
+<script>
+let ws = new WebSocket("ws://127.0.0.1:8080");
+</script>
