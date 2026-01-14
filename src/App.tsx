@@ -1,28 +1,39 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
 import { SocketManager, type SocketStatus } from "./services/socket";
+import { AblyManager, type AblyStatus } from "./services/ably";
 import { EVENTS } from "./types/events";
 import { logger } from "./services/logger";
 
+type ConnectionMode = "socket.io" | "ably";
+
 export default function App() {
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>("socket.io");
   const [url, setUrl] = useState("http://localhost:3001");
-  const [status, setStatus] = useState<SocketStatus>("disconnected");
+  const [status, setStatus] = useState<SocketStatus | AblyStatus>("disconnected");
   const [logs, setLogs] = useState<string[]>([]);
   const [demoId, setDemoId] = useState(0);
   const demoIdRef = useRef(demoId);
 
   const socketManager = useMemo(() => {
-    // 注意：url 变化就 new 一个 manager（简单粗暴但清晰）
     return new SocketManager({ url });
+  }, [url]);
+
+  const ablyManager = useMemo(() => {
+    // Use token endpoint for secure authentication
+    // The server endpoint handles the API key securely
+    return new AblyManager({ tokenEndpoint: `${url.replace(':3001', ':3001')}/api/ably-token` });
   }, [url]);
 
   useEffect(() => {
     demoIdRef.current = demoId;
   }, [demoId]);
 
+  const manager = connectionMode === "socket.io" ? socketManager : ablyManager;
+
   useEffect(() => {
-    const offStatus = socketManager.onStatus(setStatus);
-    const offLog = socketManager.onLog((m) =>
+    const offStatus = manager.onStatus(setStatus);
+    const offLog = manager.onLog((m) =>
       setLogs((prev) => {
         const id = demoIdRef.current;
         return [`${new Date().toLocaleTimeString()}  [demoID:${id}] ${m}`, ...prev].slice(0, 200);
@@ -31,9 +42,9 @@ export default function App() {
     return () => {
       offStatus();
       offLog();
-      socketManager.disconnect();
+      manager.disconnect();
     };
-  }, [socketManager]);
+  }, [manager]);
 
   const canSend = status === "connected";
 
@@ -45,31 +56,49 @@ export default function App() {
     demoIdRef.current = nextDemoId;
     setDemoId(nextDemoId);
     const payload = buildPayload("start animation preview clicked", nextDemoId);
-    socketManager.emit(EVENTS.START_ANIMATION_PREVIEW, payload);
+    manager.emit(EVENTS.START_ANIMATION_PREVIEW, payload);
     await logger.logControlAction(EVENTS.START_ANIMATION_PREVIEW, payload);
   }
 
   async function sendStartPlayAndRecord() {
     const payload = buildPayload("start playing and recording clicked", demoId);
-    socketManager.emit(EVENTS.START_PLAY_AND_RECORD, payload);
+    manager.emit(EVENTS.START_PLAY_AND_RECORD, payload);
     await logger.logControlAction(EVENTS.START_PLAY_AND_RECORD, payload);
   }
 
   async function sendStopRecording() {
     const payload = buildPayload("stop recording clicked", demoId);
-    socketManager.emit(EVENTS.STOP_RECORDING, payload);
+    manager.emit(EVENTS.STOP_RECORDING, payload);
     await logger.logControlAction(EVENTS.STOP_RECORDING, payload);
   }
 
   return (
     <div className="page">
-      <h1>WebSocket / Socket.IO Manager</h1>
+      <h1>Control Manager (Multi-Device)</h1>
 
       <div className="card">
         <div className="row">
-          <label>Server URL</label>
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3001" />
+          <label>Connection Mode</label>
+          <select value={connectionMode} onChange={(e) => setConnectionMode(e.target.value as ConnectionMode)}>
+            <option value="socket.io">Socket.IO (Local Dev)</option>
+            <option value="ably">Ably (Multi-Device)</option>
+          </select>
         </div>
+
+        {connectionMode === "socket.io" ? (
+          <div className="row">
+            <label>Server URL</label>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3001" />
+          </div>
+        ) : (
+          <div className="row">
+            <label>Server URL</label>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3001" />
+            <small style={{ display: "block", marginTop: "4px" }}>
+              Make sure your server has <code>ABLY_API_KEY</code> in environment
+            </small>
+          </div>
+        )}
 
         <div className="row">
           <label>Demo ID</label>
@@ -95,12 +124,12 @@ export default function App() {
 
           <div className="actions">
             <button
-              onClick={() => socketManager.connect()}
+              onClick={() => manager.connect()}
               disabled={status === "connecting" || status === "connected"}
             >
               Connect
             </button>
-            <button onClick={() => socketManager.disconnect()} disabled={status === "disconnected"}>
+            <button onClick={() => manager.disconnect()} disabled={status === "disconnected"}>
               Disconnect
             </button>
           </div>

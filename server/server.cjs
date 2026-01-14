@@ -3,6 +3,9 @@ const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const { Server } = require("socket.io");
+const Ably = require('ably');
+require('dotenv').config();
+const ABLY_API_KEY = process.env.ABLY_API_KEY
 
 const PORT = process.env.PORT || 3001;
 
@@ -52,7 +55,39 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  log(`Socket.IO server listening on http://localhost:${PORT}`);
+app.post("/api/ably-token", async (req, res) => {
+  try {
+    if (!ABLY_API_KEY) {
+      log("ERROR: ABLY_API_KEY is not set!");
+      return res.status(500).json({ error: "ABLY_API_KEY not configured on server" });
+    }
+    
+    log("Creating Ably token...");
+    const client = new Ably.Rest({ key: ABLY_API_KEY });
+    const tokenRequest = await client.auth.createTokenRequest();
+    log("Ably token created successfully");
+    res.json(tokenRequest);
+  } catch (error) {
+    log("Error creating Ably token", error);
+    res.status(500).json({ error: "Failed to create token" });
+  }
 });
 
+
+server.listen(PORT, '0.0.0.0', () => {
+  const os = require('os');
+  const networkInterfaces = os.networkInterfaces();
+  const addresses = [];
+  
+  for (const iface of Object.values(networkInterfaces)) {
+    for (const alias of iface) {
+      if (alias.family === 'IPv4' && !alias.internal) {
+        addresses.push(alias.address);
+      }
+    }
+  }
+  
+  log(`Socket.IO server listening on:`);
+  log(`  Local:   http://localhost:${PORT}`);
+  addresses.forEach(addr => log(`  Network: http://${addr}:${PORT}`));
+});
