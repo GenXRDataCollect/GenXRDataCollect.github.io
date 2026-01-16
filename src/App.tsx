@@ -2,15 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
 import { SocketManager, type SocketStatus } from "./services/socket";
 import { AblyManager, type AblyStatus } from "./services/ably";
+import { AzureManager, type AzureStatus } from "./services/azure";
 import { EVENTS } from "./types/events";
 import { logger } from "./services/logger";
 
-type ConnectionMode = "socket.io" | "ably";
+type ConnectionMode = "socket.io" | "ably" | "azure";
+type Status = SocketStatus | AblyStatus | AzureStatus;
 
 export default function App() {
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("socket.io");
   const [url, setUrl] = useState("http://localhost:3001");
-  const [status, setStatus] = useState<SocketStatus | AblyStatus>("disconnected");
+  const [status, setStatus] = useState<Status>("disconnected");
   const [logs, setLogs] = useState<string[]>([]);
   const [demoId, setDemoId] = useState(0);
   const demoIdRef = useRef(demoId);
@@ -20,16 +22,21 @@ export default function App() {
   }, [url]);
 
   const ablyManager = useMemo(() => {
-    // Use token endpoint for secure authentication
-    // The server endpoint handles the API key securely
-    return new AblyManager({ tokenEndpoint: `${url.replace(':3001', ':3001')}/api/ably-token` });
+    return new AblyManager({ tokenEndpoint: `${url}/api/ably-token` });
+  }, [url]);
+
+  const azureManager = useMemo(() => {
+    return new AzureManager({ tokenEndpoint: `${url}/api/azure-token` });
   }, [url]);
 
   useEffect(() => {
     demoIdRef.current = demoId;
   }, [demoId]);
 
-  const manager = connectionMode === "socket.io" ? socketManager : ablyManager;
+  const manager = 
+    connectionMode === "socket.io" ? socketManager :
+    connectionMode === "ably" ? ablyManager :
+    azureManager;
 
   useEffect(() => {
     const offStatus = manager.onStatus(setStatus);
@@ -82,6 +89,7 @@ export default function App() {
           <select value={connectionMode} onChange={(e) => setConnectionMode(e.target.value as ConnectionMode)}>
             <option value="socket.io">Socket.IO (Local Dev)</option>
             <option value="ably">Ably (Multi-Device)</option>
+            <option value="azure">Azure Web PubSub (Multi-Device)</option>
           </select>
         </div>
 
@@ -90,12 +98,20 @@ export default function App() {
             <label>Server URL</label>
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3001" />
           </div>
-        ) : (
+        ) : connectionMode === "ably" ? (
           <div className="row">
             <label>Server URL</label>
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3001" />
             <small style={{ display: "block", marginTop: "4px" }}>
               Make sure your server has <code>ABLY_API_KEY</code> in environment
+            </small>
+          </div>
+        ) : (
+          <div className="row">
+            <label>Server URL</label>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3001" />
+            <small style={{ display: "block", marginTop: "4px" }}>
+              Make sure your server has <code>AZURE_WEB_PUBSUB_CONNECTION_STRING</code> in environment
             </small>
           </div>
         )}

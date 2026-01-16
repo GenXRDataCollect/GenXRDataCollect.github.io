@@ -3,10 +3,11 @@ const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const { Server } = require("socket.io");
-const Ably = require('ably');
+const { WebPubSubServiceClient } = require('@azure/web-pubsub');
 require('dotenv').config();
-const ABLY_API_KEY = process.env.ABLY_API_KEY
 
+const AZURE_WEB_PUBSUB_CONNECTION_STRING = process.env.AZURE_WEB_PUBSUB_CONNECTION_STRING;
+const AZURE_WEB_PUBSUB_HUB = process.env.AZURE_WEB_PUBSUB_HUB || 'socket-hub';
 const PORT = process.env.PORT || 3001;
 
 const CONTROL_EVENTS = {
@@ -55,20 +56,34 @@ io.on("connection", (socket) => {
   });
 });
 
-app.post("/api/ably-token", async (req, res) => {
+app.post("/api/azure-token", async (req, res) => {
   try {
-    if (!ABLY_API_KEY) {
-      log("ERROR: ABLY_API_KEY is not set!");
-      return res.status(500).json({ error: "ABLY_API_KEY not configured on server" });
+    if (!AZURE_WEB_PUBSUB_CONNECTION_STRING) {
+      log("ERROR: AZURE_WEB_PUBSUB_CONNECTION_STRING is not set!");
+      return res.status(500).json({ error: "AZURE_WEB_PUBSUB_CONNECTION_STRING not configured on server" });
     }
     
-    log("Creating Ably token...");
-    const client = new Ably.Rest({ key: ABLY_API_KEY });
-    const tokenRequest = await client.auth.createTokenRequest();
-    log("Ably token created successfully");
-    res.json(tokenRequest);
+    log("Creating Azure Web PubSub token...");
+    const serviceClient = new WebPubSubServiceClient(
+      AZURE_WEB_PUBSUB_CONNECTION_STRING,
+      AZURE_WEB_PUBSUB_HUB
+    );
+    
+    // Generate a client access token with a unique user ID
+    const userId = req.body?.userId || `user-${Date.now()}`;
+    const token = await serviceClient.getClientAccessToken({
+      userId: userId,
+      roles: ['webpubsub.sendToGroup', 'webpubsub.joinLeaveGroup']
+    });
+    
+    log("Azure Web PubSub token created successfully");
+    res.json({
+      url: token.url,
+      token: token.token,
+      userId: userId
+    });
   } catch (error) {
-    log("Error creating Ably token", error);
+    log("Error creating Azure token", error);
     res.status(500).json({ error: "Failed to create token" });
   }
 });
