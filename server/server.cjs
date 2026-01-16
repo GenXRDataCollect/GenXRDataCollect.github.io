@@ -1,9 +1,10 @@
-// Basic Socket.IO + Express server for local testing with the web UI
+// Basic Socket.IO + Express server with Azure Web PubSub
 const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const { WebPubSubServiceClient } = require('@azure/web-pubsub');
+
 require('dotenv').config();
 
 const AZURE_WEB_PUBSUB_CONNECTION_STRING = process.env.AZURE_WEB_PUBSUB_CONNECTION_STRING;
@@ -56,38 +57,43 @@ io.on("connection", (socket) => {
   });
 });
 
+// Azure Web PubSub token endpoint
 app.post("/api/azure-token", async (req, res) => {
   try {
     if (!AZURE_WEB_PUBSUB_CONNECTION_STRING) {
       log("ERROR: AZURE_WEB_PUBSUB_CONNECTION_STRING is not set!");
-      return res.status(500).json({ error: "AZURE_WEB_PUBSUB_CONNECTION_STRING not configured on server" });
+      return res.status(500).json({ error: "Azure Web PubSub connection string not configured" });
     }
     
-    log("Creating Azure Web PubSub token...");
+    // ADD THIS: Log the connection string (masked)
+    const masked = AZURE_WEB_PUBSUB_CONNECTION_STRING.replace(/AccessKey=([^;]+)/, 'AccessKey=***');
+    log("Connection string:", masked);
+    log("Hub name:", AZURE_WEB_PUBSUB_HUB);
+    console.log('Using hub:', AZURE_WEB_PUBSUB_HUB);
     const serviceClient = new WebPubSubServiceClient(
       AZURE_WEB_PUBSUB_CONNECTION_STRING,
       AZURE_WEB_PUBSUB_HUB
     );
     
-    // Generate a client access token with a unique user ID
     const userId = req.body?.userId || `user-${Date.now()}`;
+    
+    // ADD THIS: Log the token generation
+    log("Generating token for user:", userId);
+    
     const token = await serviceClient.getClientAccessToken({
       userId: userId,
       roles: ['webpubsub.sendToGroup', 'webpubsub.joinLeaveGroup']
     });
     
-    log("Azure Web PubSub token created successfully");
-    res.json({
-      url: token.url,
-      token: token.token,
-      userId: userId
-    });
+    log("Token generated successfully");
+    log("Token URL:", token.url);
+    
+    res.json({ url: token.url });
   } catch (error) {
-    log("Error creating Azure token", error);
-    res.status(500).json({ error: "Failed to create token" });
+    log("Error creating Azure Web PubSub token", error);
+    res.status(500).json({ error: error.message || "Failed to create token" });
   }
 });
-
 
 server.listen(PORT, '0.0.0.0', () => {
   const os = require('os');

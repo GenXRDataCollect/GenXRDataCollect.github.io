@@ -26,7 +26,7 @@ export default function App() {
   }, [url]);
 
   const azureManager = useMemo(() => {
-    return new AzureManager({ tokenEndpoint: `${url}/api/azure-token` });
+    return new AzureManager({ url });
   }, [url]);
 
   useEffect(() => {
