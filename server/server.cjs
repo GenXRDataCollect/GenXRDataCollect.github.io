@@ -50,6 +50,13 @@ io.on("connection", (socket) => {
   socket.on("disconnect", (reason) => {
     log(`Client disconnected: ${socket.id} (${reason})`);
   });
+
+  socket.on("spacebar_click", (data) => {
+    console.log("server received spacebar_click:", data);
+
+    socket.broadcast.emit("spacebar_click", data);
+  });
+
 });
 
 server.listen(PORT, () => {
